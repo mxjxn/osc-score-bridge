@@ -64,22 +64,34 @@ class OSCBridgeMapping(PropertyGroup):
     out_min: FloatProperty(name="Out Min", default=0.0)
     out_max: FloatProperty(name="Out Max", default=1.0)
 
-    # Interpolation
-    interp_mode: EnumProperty(
-        name="Interpolation",
+    # Easing mode (replaces old interp_mode)
+    easing: EnumProperty(
+        name="Easing",
         items=[
-            ("STEP", "Step", "Hold value until next event (instant changes)"),
-            ("LINEAR", "Linear", "Ramp between consecutive events"),
-            ("BEZIER", "Bezier", "Smooth bezier curves between events"),
+            ("INSTANT", "Instant",
+             "Snap to value immediately (step). Good for percussive hits."),
+            ("LINEAR", "Linear",
+             "Constant-speed ramp to the new value."),
+            ("SMOOTH", "Smooth",
+             "Ease in-out (cubic). Organic, natural motion."),
+            ("OVERSHOOT", "Overshoot",
+             "Spring past the target, settle back. Mechanical, energetic."),
+            ("BOUNCE", "Bounce",
+             "Elastic bounce settle. Playful, cartoony."),
+            ("LAG", "Lag",
+             "Delayed catch-up. Heavy, sluggish, organic."),
         ],
-        default="STEP",
+        default="INSTANT",
     )
 
-    # F-Curve creation
-    use_action: BoolProperty(
-        name="Use Action",
-        description="Store keyframes in an Action data-block (recommended)",
-        default=True,
+    # Transition duration in seconds (how long the easing takes)
+    transition: FloatProperty(
+        name="Transition",
+        description="How long (in seconds) each transition takes to reach the target value",
+        default=0.15,
+        min=0.0,
+        soft_max=2.0,
+        subtype="TIME",
     )
 
     # Status

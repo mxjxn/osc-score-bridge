@@ -159,8 +159,14 @@ class OSCBRIDGE_PT_mappings(bpy.types.Panel):
         out_col = row_out.row(align=True)
         out_col.prop(m, "out_max", text="Max")
 
-        # Interpolation
-        box.prop(m, "interp_mode", text="")
+        # Easing + Transition
+        row_ease = box.row(align=True)
+        row_ease.label(text="Ease:")
+        row_ease.prop(m, "easing", text="")
+        row_trans = box.row(align=True)
+        row_trans.label(text="Time:")
+        row_trans.prop(m, "transition", text="")
+        row_trans.label(text="s")
 
 
 # ───────────────────────────────────────────────── /Docs ──────────────────────────────────────
@@ -266,30 +272,41 @@ class OSCBRIDGE_PT_docs(bpy.types.Panel):
     def _draw_tips(self, layout):
         """Tips and tricks."""
         tips = [
-            ("Tip 1: Rotation Mapping",
-             "Map freq (220-660) to rotation_euler[2] with output 0-6.283 (full turn). "
-             "Each note triggers a visual spin."),
-            ("Tip 2: Emission Pulse",
-             "Map amp (0-0.3) to material emission_strength (0-10). "
-             "Every note fires a glow burst on the object."),
-            ("Step vs Linear",
-             "Step: instant value jumps (percussive, punchy). "
-             "Linear: ramps between notes (smooth, continuous)."),
-            ("Tip 4: Negative Output",
-             "Output ranges can be negative. Map a 0-1 track to -1 to +1 "
+            ("Easing: Instant",
+             "Percussive hits, light flashes, sudden changes. "
+             "No transition time needed — value snaps immediately."),
+            ("Easing: Smooth",
+             "The workhorse. Natural organic motion. "
+             "Good default for rotation, scale, location. "
+             "0.15-0.3s transition feels snappy yet smooth."),
+            ("Easing: Overshoot",
+             "Spring/p settle. Great for mechanical parts, "
+             "robotic arms, anything that should feel powered. "
+             "Pair with 0.1-0.2s transition."),
+            ("Easing: Bounce",
+             "Elastic settle. Playful, cartoony. "
+             "Use sparingly — needs 0.3s+ to read."),
+            ("Easing: Lag",
+             "Delayed catch-up. Heavy, sluggish, organic. "
+             "Great for fog density, large objects, anything massive."),
+            ("Transition Time",
+             "How long the easing curve takes. 0.05s = instant, "
+             "0.15s = snappy, 0.3s = smooth, 0.5s+ = luxurious."),
+            ("Tip: Rotation Mapping",
+             "Map freq (220-660) to rotation_euler[2] with output "
+             "0-6.283 (full turn). Each note spins the object."),
+            ("Tip: Emission Pulse",
+             "Map amp (0-0.3) to emission_strength (0-10). "
+             "Instant easing for sharp strobes, Smooth for glows."),
+            ("Tip: Negative Output",
+             "Output ranges can be negative. Map 0-1 to -1 to +1 "
              "for bidirectional control."),
-            ("Tip 5: Multiple Targets",
-             "Create multiple mappings from the same track to drive "
-             "different objects simultaneously from one parameter."),
-            ("Tip 6: Frame Offset",
-             "Use 'Start Frame' to offset where the animation begins "
-             "on the timeline."),
-            ("Tip 7: Normalization",
-             "If input range is unknown, load the OSC file first — "
-             "input min/max auto-fill from detected values."),
-            ("Tip 8: Re-baking",
-             "Re-baking overwrites keyframes on the same F-Curve. "
-             "No need to clear first."),
+            ("Tip: Multiple Targets",
+             "Map the same track to different objects with different "
+             "easing. One drives a snappy light, another a smooth motor."),
+            ("Tip: Re-baking",
+             "Re-baking overwrites keyframes cleanly. "
+             "Change easing and re-bake without clearing first."),
         ]
 
         for title, desc in tips:

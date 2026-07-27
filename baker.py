@@ -4,12 +4,87 @@ Converts mappings into Blender F-Curves with keyframes.
 
 Uses keyframe_insert() for Blender 5.x compatibility
 (new animation system / slotted actions).
+
+Easing modes generate intermediate keyframes with carefully
+positioned bezier handles to create smooth, overshoot, bounce,
+and lag transitions between OSC events.
 """
 
 import bpy
 import math
 from . import parser as osc_parser
 
+
+# ──────────────────────────────────────────────
+# Easing Functions
+# ──────────────────────────────────────────────
+# Each takes a normalized time t [0..1] and returns a curve value.
+# These define the SHAPE of the transition between two values.
+
+def _ease_linear(t):
+    """Constant speed."""
+    return t
+
+
+def _ease_smooth(t):
+    """Cubic ease in-out — S-curve."""
+    if t < 0.5:
+        return 4 * t * t * t
+    else:
+        p = -2 * t + 2
+        return 1 - (p * p * p) / 2
+
+
+def _ease_overshoot(t):
+    """
+    Spring past target, settle back.
+    Based on ease-out-back with moderate overshoot.
+    """
+    c1 = 1.70158
+    c3 = c1 + 1
+    return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+
+
+def _ease_bounce(t):
+    """Elastic bounce settle — ease-out-bounce."""
+    n1 = 7.5625
+    d1 = 2.75
+
+    if t < 1 / d1:
+        return n1 * t * t
+    elif t < 2 / d1:
+        t -= 1.5 / d1
+        return n1 * t * t + 0.75
+    elif t < 2.5 / d1:
+        t -= 2.25 / d1
+        return n1 * t * t + 0.9375
+    else:
+        t -= 2.625 / d1
+        return n1 * t * t + 0.984375
+
+
+def _ease_lag(t):
+    """
+    Delayed catch-up — exponential approach to target.
+    Starts slow, finishes fast (ease-out-cubic).
+    """
+    return 1 - (1 - t) ** 3
+
+
+# Dispatch table
+EASING_FUNCTIONS = {
+    "INSTANT": None,  # Handled specially — no intermediate frames
+    "LINEAR": _ease_linear,
+    "SMOOTH": _ease_smooth,
+    "OVERSHOOT": _ease_overshoot,
+    "BOUNCE": _ease_bounce,
+    "LAG": _ease_lag,
+}
+
+
+# ──────────────────────────────────────────────
+# Core Baking
+# ──────────────────────────────────────────────
 
 def remap(value, in_min, in_max, out_min, out_max):
     """Map a value from input range to output range."""
@@ -22,10 +97,6 @@ def remap(value, in_min, in_max, out_min, out_max):
 def bake_mappings(scene, on_progress=None):
     """
     Bake all mappings into F-Curves.
-
-    Args:
-        scene: Blender scene with osc_bridge settings
-        on_progress: optional callback(current, total) for UI updates
 
     Returns:
         (baked_count, errors_list)
@@ -75,9 +146,9 @@ def bake_mappings(scene, on_progress=None):
 
 
 def _bake_single(mapping, events, scene, fps, frame_start):
-    """Bake a single mapping using keyframe_insert()."""
-
-    # Resolve the target object
+    """
+    Bake a single mapping into an F-Curve with easing transitions.
+    """
     obj_name = mapping.target_object.strip()
     if obj_name:
         obj = bpy.data.objects.get(obj_name)
@@ -102,40 +173,94 @@ def _bake_single(mapping, events, scene, fps, frame_start):
     # Remove existing keyframes on this data_path/index
     _clear_fcurves_for(action, data_path, array_index)
 
-    # Set interpolation mode mapping
-    interp_map = {
-        "STEP": "CONSTANT",
-        "LINEAR": "LINEAR",
-        "BEZIER": "BEZIER",
-    }
-    blender_interp = interp_map.get(mapping.interp_mode, "CONSTANT")
+    easing = mapping.easing
+    transition_frames = max(1, int(mapping.transition * fps))
+    ease_fn = EASING_FUNCTIONS.get(easing)
 
-    # Insert keyframes by setting frame first, then value, then inserting.
-    # Order matters: frame_set triggers depsgraph eval which applies existing
-    # F-curves, so we must set our value AFTER frame_set to avoid overwrites.
-    for time_sec, raw_value in events:
-        frame = int(time_sec * fps) + frame_start
-        value = remap(
-            raw_value,
-            mapping.in_min, mapping.in_max,
-            mapping.out_min, mapping.out_max,
-        )
+    # Remap all event values first
+    remapped = [
+        (time_sec, remap(raw, mapping.in_min, mapping.in_max,
+                         mapping.out_min, mapping.out_max))
+        for time_sec, raw in events
+    ]
 
-        # 1. Move to target frame (applies any existing animation)
-        scene.frame_set(frame)
-        # 2. Set our remapped value (overwrites whatever depsgraph did)
-        _set_property_value(obj, data_path, array_index, value)
-        # 3. Insert keyframe at current frame with current value
-        obj.keyframe_insert(data_path, index=array_index)
+    if easing == "INSTANT" or ease_fn is None:
+        # Simple step keyframes — one per event
+        _insert_keyframe(scene, obj, data_path, array_index,
+                         frame_start + int(remapped[0][0] * fps),
+                         remapped[0][1])
+        for i in range(1, len(remapped)):
+            time_sec, value = remapped[i]
+            frame = frame_start + int(time_sec * fps)
+            _insert_keyframe(scene, obj, data_path, array_index,
+                             frame, value)
 
-    # Set interpolation on all keyframe points
-    _set_interpolation(action, data_path, array_index, blender_interp)
+        # Set to CONSTANT interpolation
+        _set_keyframe_interp(action, data_path, array_index, "CONSTANT")
+        return
+
+    # For easing modes: generate intermediate keyframes between each pair
+    # First event: just plant it
+    first_frame = frame_start + int(remapped[0][0] * fps)
+    _insert_keyframe(scene, obj, data_path, array_index,
+                     first_frame, remapped[0][1])
+
+    for i in range(1, len(remapped)):
+        prev_time, prev_val = remapped[i - 1]
+        curr_time, curr_val = remapped[i]
+
+        curr_frame = frame_start + int(curr_time * fps)
+        trans_start_frame = curr_frame - transition_frames
+
+        # Clamp transition start to not go before previous event frame
+        prev_frame = frame_start + int(prev_time * fps)
+        if trans_start_frame <= prev_frame:
+            trans_start_frame = prev_frame + 1
+
+        # Insert a keyframe at transition start holding the previous value
+        # (only if not the same frame as the previous keyframe)
+        if trans_start_frame > prev_frame:
+            _insert_keyframe(scene, obj, data_path, array_index,
+                             trans_start_frame, prev_val)
+
+        # Generate intermediate keyframes tracing the easing curve.
+        # With auto-clamped bezier handles, 4-5 samples is enough for
+        # a smooth curve without flooding the Graph Editor.
+        num_samples = max(2, min(transition_frames // 2, 5))
+        for s in range(1, num_samples):
+            t = s / num_samples  # normalized 0..1
+            eased_t = ease_fn(t)
+            val = prev_val + (curr_val - prev_val) * eased_t
+            frame = trans_start_frame + int(t * transition_frames)
+            if frame < curr_frame:
+                _insert_keyframe(scene, obj, data_path, array_index,
+                                 frame, val)
+
+        # Final keyframe at the event time with the target value
+        _insert_keyframe(scene, obj, data_path, array_index,
+                         curr_frame, curr_val)
+
+    # Set bezier handles for smooth curves
+    _setup_bezier_handles(action, data_path, array_index)
+
+
+# ──────────────────────────────────────────────
+# Keyframe Insertion Helpers
+# ──────────────────────────────────────────────
+
+def _insert_keyframe(scene, obj, data_path, array_index, frame, value):
+    """
+    Insert a single keyframe at a specific frame with a specific value.
+    Sets frame first, then value, then inserts (order matters for depsgraph).
+    """
+    scene.frame_set(frame)
+    _set_property_value(obj, data_path, array_index, value)
+    obj.keyframe_insert(data_path, index=array_index)
 
 
 def _set_property_value(obj, data_path, array_index, value):
     """Set a property value on an object, handling nested paths."""
     if "." in data_path and not data_path.startswith("["):
-        # Nested path like "active_material.emission_strength"
         parts = data_path.split(".")
         current = obj
         for part in parts[:-1]:
@@ -157,19 +282,20 @@ def _set_property_value(obj, data_path, array_index, value):
             setattr(obj, data_path, value)
 
 
+# ──────────────────────────────────────────────
+# F-Curve Management (Blender 5.x aware)
+# ──────────────────────────────────────────────
+
 def _get_all_fcurves(action):
     """
     Get all F-curves from an action, handling both legacy
     and Blender 5.x slotted actions.
-    Yields (fcurves_collection, parent) tuples.
     """
-    # Legacy: direct fcurves
     fcurves = getattr(action, "fcurves", None)
     if fcurves is not None:
         yield fcurves
         return
 
-    # Blender 5.x: layers → strips → channelbags → fcurves
     layers = getattr(action, "layers", None)
     if layers is None:
         return
@@ -196,23 +322,39 @@ def _clear_fcurves_for(action, data_path, array_index):
             fcurves.remove(fc)
 
 
-def _set_interpolation(action, data_path, array_index, interp):
-    """Set interpolation on keyframe points."""
+def _set_keyframe_interp(action, data_path, array_index, interp):
+    """Set interpolation on all keyframe points of a specific F-curve."""
+    for fcurves in _get_all_fcurves(action):
+        fc = fcurves.find(data_path, index=array_index)
+        if fc is None:
+            continue
+        for kp in fc.keyframe_points:
+            kp.interpolation = interp
+        fc.update()
+
+
+def _setup_bezier_handles(action, data_path, array_index):
+    """
+    Set auto-clamped bezier handles on keyframes for smooth curves.
+    This lets Blender compute proper tangent handles for the
+    intermediate easing keyframes.
+    """
     for fcurves in _get_all_fcurves(action):
         fc = fcurves.find(data_path, index=array_index)
         if fc is None:
             continue
 
         for kp in fc.keyframe_points:
-            kp.interpolation = interp
-
-        if interp == "BEZIER":
-            for kp in fc.keyframe_points:
-                kp.handle_left_type = "AUTO_CLAMPED"
-                kp.handle_right_type = "AUTO_CLAMPED"
+            kp.interpolation = "BEZIER"
+            kp.handle_left_type = "AUTO_CLAMPED"
+            kp.handle_right_type = "AUTO_CLAMPED"
 
         fc.update()
 
+
+# ──────────────────────────────────────────────
+# Clear
+# ──────────────────────────────────────────────
 
 def clear_baked(scene):
     """Remove all baked F-Curves for OSC mappings."""
