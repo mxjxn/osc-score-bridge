@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+dist/
+renders/
+demo/*.blend
+demo/*.blend1
+demo/.ppf_manifest.json

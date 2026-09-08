@@ -17,10 +17,10 @@ N-Panel location: View3D > Sidebar (N) > "OSC Bridge" tab
 bl_info = {
     "name": "OSC Score Bridge",
     "author": "Mx Jxn + Hermes",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar (N) > OSC Bridge",
-    "description": "Map SuperCollider OSC score parameters to Blender F-Curves",
+    "description": "Monitor live musical OSC and map recorded scores to Blender animation",
     "category": "Animation",
 }
 
@@ -29,12 +29,18 @@ import bpy
 from . import properties
 from . import operators
 from . import ui
+from . import live
+from . import performance_scene
 
 # Combine all classes from submodules
 classes = (
     properties.OSCBridgeTrack,
     properties.OSCBridgeMapping,
     properties.OSCBridgeSettings,
+    live.OSCBRIDGE_OT_live_toggle,
+    live.OSCBRIDGE_OT_demo_rig,
+    performance_scene.OSCBRIDGE_OT_build_performance_scene,
+    performance_scene.OSCBRIDGE_OT_bake_performance_scene,
     operators.OSCBRIDGE_OT_load_file,
     operators.OSCBRIDGE_OT_add_mapping,
     operators.OSCBRIDGE_OT_remove_mapping,
@@ -42,6 +48,7 @@ classes = (
     operators.OSCBRIDGE_OT_clear_baked,
     operators.OSCBRIDGE_OT_clear_mappings,
     ui.OSCBRIDGE_PT_main,
+    live.OSCBRIDGE_PT_live,
     ui.OSCBRIDGE_PT_tracks,
     ui.OSCBRIDGE_PT_mappings,
     ui.OSCBRIDGE_PT_docs,
@@ -57,6 +64,8 @@ def register():
 
 
 def unregister():
+    live.stop()
+    performance_scene.remove_frame_handler()
     del bpy.types.Scene.osc_bridge_settings
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
