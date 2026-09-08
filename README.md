@@ -1,6 +1,42 @@
 # OSC Score Bridge
 
-A Blender addon that maps **SuperCollider** score data to **Blender animations** — without realtime audio.
+A Blender add-on that receives live musical events over OSC and maps recorded **SuperCollider** score data to **Blender animations**.
+
+## Live performance quick start
+
+1. Install and enable the add-on, then open **View3D → Sidebar (`N`) → OSC Bridge**.
+2. Expand **Live Performance** and click **Listen**. The default UDP port is `57141`.
+3. Start an OSC sender. The Ambient Companion server reports `Blender OSC mirror 127.0.0.1:57141` when its mirror is active.
+4. Enable browser audio and connect `sclang`, then play the sequencer or evaluate `~wcNote.(\bass, 48, 1)`.
+5. The dashboard shows the track, SynthDef, note and active voice count. With **Create visuals for new tracks** enabled, one reactive object is created per musical track.
+
+Click **Build Portrait Tunnel** for the first designed performance scene. It creates:
+
+- a 1080 × 1920 Eevee composition at 30 FPS;
+- an 800-frame, 12-bar timeline at 108 BPM;
+- 44 rows of bass-reactive floor tiles with an exact 33-row seamless wrap;
+- two transparent, pad-reactive displaced glass walls;
+- a pool of 36 psychedelic segmented drum rings in six patterns;
+- portrait camera movement and a glow compositor.
+
+The loop is rendered on frames 1–800. Frame 801 is the duplicate loop state and should not be included in the video.
+
+Load a recorded text `.osc` take in the main file control and click **Bake Score to Tunnel** to create deterministic timeline animation. Live OSC is not used during the final render. The baker converts bass notes to tile impulses, pad voice activity to wall displacement, and a restrained subset of drum hits to pooled ring flythroughs.
+
+OSC bundles retain their timestamps, so the add-on queues events until their intended audio time. Use **Create / Refresh Visual Rig** to arrange the known track objects in one collection.
+
+### Live OSC protocol
+
+Send messages to UDP port `57141` (configurable in the panel). Plain OSC messages and timestamped OSC bundles are accepted.
+
+| Address | Arguments | Purpose |
+|---|---|---|
+| `/companion/note` | `track, nodeID, synth, parameter, value...` | Start a voice |
+| `/companion/set` | `track, nodeID, parameter, value...` | Change or gate a voice |
+| `/companion/free` | `track, nodeID` | End a voice |
+| `/companion/choke` | `track` | Choke open/closed drum voices |
+
+Recognized performance tracks are `bass`, `drums`, and `pad`. The dashboard still displays other track names, and the generic visual rig can create an object for each one. Parameters such as `freq`, `amp`, `decay`, `type`, and `spread` drive the supplied scene.
 
 Generate an OSC score file in SuperCollider, load it in Blender, map any parameter (frequency, amplitude, etc.) to any animatable property, and bake it to F-Curves. No audio hardware required.
 
@@ -24,7 +60,7 @@ SuperCollider NRT          Blender
 └─────────────┘          └─────────────────┘
 ```
 
-### 3-Step Workflow
+### Recorded score workflow
 
 1. **Load** a `.osc` file — tracks are auto-detected (`sine.freq`, `saw.amp`, `control_0`, etc.)
 2. **Map** a track to a Blender property with custom input/output ranges
@@ -60,7 +96,7 @@ SynthDef(\sine, { |out = 0, freq = 440, amp = 0.3, sustain = 1|
 }.value;
 ```
 
-The output file looks like:
+The bridge reads a text score: one timestamped OSC message per line. The output file looks like:
 
 ```
 0.0 /s_new sine 1000 0 0 freq 440 amp 0.3 sustain 1
@@ -71,6 +107,9 @@ Patterns work too — `Pbind` → `asScore()` → same writer.
 
 ## Features
 
+- **Live dashboard** — inspect incoming notes and active voices by track and SynthDef
+- **Automatic visual rig** — create independent bass, drum and pad objects without manual paths
+- **Timestamp-aware OSC** — follow scheduled SuperCollider events in sync with browser audio
 - **Auto-detect** tracks from `/s_new`, `/n_set`, and `/c_set` messages
 - **Range mapping** — remap any input range to any output range per mapping
 - **Interpolation** — Step (percussive), Linear (smooth), or Bezier
@@ -81,7 +120,7 @@ Patterns work too — `Pbind` → `asScore()` → same writer.
 
 ## Requirements
 
-- Blender 4.2+ (tested on 5.2 LTS)
+- Blender 4.2+ (tested on 5.2)
 - SuperCollider 3.13+ (for generating `.osc` files)
 - No audio hardware needed
 

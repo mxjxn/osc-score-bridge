@@ -115,6 +115,19 @@ class OSCBridgeSettings(PropertyGroup):
     track_index: IntProperty(name="Track Index", default=0)
     mapping_index: IntProperty(name="Mapping Index", default=0)
 
+    live_port: IntProperty(
+        name="Live OSC Port",
+        description="UDP port receiving the companion's timestamped musical events",
+        default=57141,
+        min=1024,
+        max=65535,
+    )
+    live_auto_objects: BoolProperty(
+        name="Create visuals for new tracks",
+        description="Automatically create a reactive object when a new instrument track arrives",
+        default=True,
+    )
+
     frame_start: IntProperty(
         name="Start Frame",
         description="Frame to start baking from",

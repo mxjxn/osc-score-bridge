@@ -1,0 +1,6 @@
+# Browser-style names verify that exported companion scores are recognized.
+0.0 /s_new bass_dashMono 1001 0 0 freq 65.406 amp 0.25
+0.0 /s_new drums_dashDrum 2001 0 0 freq 60 amp 0.30 type 0 decay 0.2
+0.5 /s_new pad_ambPad 3001 0 0 freq 261.626 amp 0.08 spread 0.9
+1.0 /n_set 3001 gate 0
+2.0 /s_new drums_dashDrum 2002 0 0 freq 80 amp 0.22 type 1 decay 0.15

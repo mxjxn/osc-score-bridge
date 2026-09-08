@@ -1,0 +1,3 @@
+0.0 /s_new lead 1000 0 0 freq 440 amp 0.25
+0.5 /n_set 1000 freq 660
+1.0 /c_set 3 0.75
