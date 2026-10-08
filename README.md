@@ -35,8 +35,12 @@ Send messages to UDP port `57141` (configurable in the panel). Plain OSC message
 | `/companion/set` | `track, nodeID, parameter, value...` | Change or gate a voice |
 | `/companion/free` | `track, nodeID` | End a voice |
 | `/companion/choke` | `track` | Choke open/closed drum voices |
+| `/rack/control` | `name, value` | Named normalized control (`value` finite, clamped 0–1) |
+| `/rack/reset` | _(none)_ | Clear queued events + active voices and reset live envelopes |
 
-Recognized performance tracks are `bass`, `drums`, and `pad`. The dashboard still displays other track names, and the generic visual rig can create an object for each one. Parameters such as `freq`, `amp`, `decay`, `type`, and `spread` drive the supplied scene.
+Recognized performance tracks are `bass`, `drums`, and `pad`. The dashboard still displays other track names, and the generic visual rig can create an object for each one. Parameters such as `freq`, `amp`, `decay`, `type`, and `spread` drive the supplied scene. Any synth can now auto-expire with explicit `duration`/`dur`, and voices still close immediately via `/companion/free` or `gate <= 0` in `/companion/set`.
+
+Named controls appear in the **Live Performance** panel and can be mapped like other tracks (track name format: `control.<name>`). Mapping targets support regular RNA paths, custom properties (for example `["glow"]`), and modifier paths including Geometry Nodes-style inputs (for example `modifiers["GeometryNodes"]["Input_2"]`).
 
 Generate an OSC score file in SuperCollider, load it in Blender, map any parameter (frequency, amplitude, etc.) to any animatable property, and bake it to F-Curves. No audio hardware required.
 
@@ -104,6 +108,18 @@ The bridge reads a text score: one timestamped OSC message per line. The output 
 ```
 
 Patterns work too — `Pbind` → `asScore()` → same writer.
+
+### Minimal live sender example (Python)
+
+```python
+from pythonosc.udp_client import SimpleUDPClient
+
+client = SimpleUDPClient("127.0.0.1", 57141)
+client.send_message("/companion/note", ["bass", 1001, "sampler", "freq", 110, "amp", 0.25, "duration", 0.6])
+client.send_message("/rack/control", ["bloom", 1.2])  # clamped to 1.0
+client.send_message("/companion/free", ["bass", 1001])
+client.send_message("/rack/reset", [])
+```
 
 ## Features
 

@@ -9,6 +9,9 @@ from collections import deque
 import bpy
 from bpy.props import IntProperty
 
+from . import baker
+from . import protocol
+
 
 _socket = None
 _timer_running = False
@@ -16,6 +19,7 @@ _scheduled = []
 _events = deque(maxlen=10)
 _voices = {}
 _tracks = {}
+_controls = {}
 _received = 0
 _last_error = ""
 
@@ -71,10 +75,6 @@ def decode_packet(data, inherited_time=None, depth=0):
             raise ValueError(f"unsupported OSC type {tag}")
         args.append(value)
     return [(inherited_time, address, args)]
-
-
-def _pairs(values):
-    return {str(values[i]): values[i + 1] for i in range(0, len(values) - 1, 2)}
 
 
 def _midi(freq):
@@ -146,15 +146,52 @@ def _update_visual(track):
     obj.rotation_euler.z += 0.12 + count * 0.035 if count else 0
 
 
+def _apply_control_mappings(control_name, raw_value):
+    settings = getattr(bpy.context.scene, "osc_bridge_settings", None)
+    if settings is None:
+        return
+    track_name = protocol.control_track(control_name)
+    for mapping in settings.mappings:
+        if mapping.track_name != track_name:
+            continue
+        obj_name = mapping.target_object.strip()
+        if not obj_name:
+            raise ValueError(f"Mapping '{track_name}' has no target object")
+        obj = bpy.data.objects.get(obj_name)
+        if obj is None:
+            raise ValueError(f"Object '{obj_name}' not found for '{track_name}'")
+        mapped = baker.remap(
+            raw_value,
+            mapping.in_min,
+            mapping.in_max,
+            mapping.out_min,
+            mapping.out_max,
+        )
+        baker.set_live_property_value(
+            obj,
+            mapping.target_data_path,
+            mapping.target_array_index,
+            mapped,
+        )
+
+
+def _reset_transport():
+    protocol.reset_transport_state(_scheduled, _voices, _tracks)
+    _controls.clear()
+    from . import performance_scene
+    performance_scene.reset_live()
+    _events.appendleft("RESET transport")
+
+
 def _handle(address, args):
     global _received
     _received += 1
     now = time.time()
     if address == "/companion/note" and len(args) >= 3:
         track, node, synth = str(args[0]), int(args[1]), str(args[2])
-        params = _pairs(args[3:])
+        params = protocol.pairs(args[3:])
         note = _midi(params.get("freq"))
-        end_at = now + float(params.get("decay", 0.25)) + 0.1 if synth == "dashDrum" else None
+        end_at = protocol.compute_voice_end(now, synth, params)
         _voices[node] = {"track": track, "synth": synth, "note": note, "params": params, "at": now, "end_at": end_at}
         state = _tracks.setdefault(track, {"synth": synth, "voices": {}, "last": now})
         state.update(synth=synth, last=now)
@@ -170,12 +207,15 @@ def _handle(address, args):
             performance_scene.set_pad(params.get("spread", 0.8), params.get("amp", 0.08), len(state["voices"]))
     elif address == "/companion/set" and len(args) >= 2:
         track, node = str(args[0]), int(args[1])
-        params = _pairs(args[2:])
+        params = protocol.pairs(args[2:])
         voice = _voices.get(node)
         if voice:
             voice["params"].update(params)
             if "freq" in params:
                 voice["note"] = _midi(params["freq"])
+            new_end = protocol.compute_voice_end(now, voice["synth"], voice["params"])
+            if new_end is not None:
+                voice["end_at"] = new_end
             if float(params.get("gate", 1)) <= 0:
                 _voices.pop(node, None)
                 _tracks.get(track, {}).get("voices", {}).pop(node, None)
@@ -200,6 +240,16 @@ def _handle(address, args):
                 _tracks[track]["voices"].pop(node, None)
         _events.appendleft(f"CHOKE {track}")
         _update_visual(track)
+    elif address == "/rack/control" and len(args) >= 2:
+        name = str(args[0]).strip()
+        value = protocol.clamp_normalized(args[1])
+        if not name or value is None:
+            return
+        _controls[name] = {"value": value, "at": now}
+        _events.appendleft(f"CTL {name:<12} {value:.2f}")
+        _apply_control_mappings(name, value)
+    elif address in {"/rack/reset", "/companion/reset", "/transport/reset"}:
+        _reset_transport()
 
 
 def _poll():
@@ -215,17 +265,13 @@ def _poll():
                 break
             _scheduled.extend(decode_packet(data))
         now = time.time()
-        due, future = [], []
-        for event in _scheduled:
-            (due if event[0] is None or event[0] <= now else future).append(event)
+        due, future = protocol.split_due_events(_scheduled, now)
         _scheduled[:] = future
         for _at, address, args in due:
             _handle(address, args)
-        for node, voice in list(_voices.items()):
-            if voice["end_at"] is not None and voice["end_at"] <= now:
-                _voices.pop(node, None)
-                _tracks[voice["track"]]["voices"].pop(node, None)
-                _update_visual(voice["track"])
+        for track in protocol.expire_voices(_voices, _tracks, now):
+            _events.appendleft(f"OFF {track:<8} auto")
+            _update_visual(track)
         for track, state in _tracks.items():
             if not state["voices"]:
                 obj = _track_object(track)
@@ -257,6 +303,7 @@ def stop():
     if _socket:
         _socket.close()
         _socket = None
+    _reset_transport()
 
 
 def is_listening():
@@ -292,6 +339,17 @@ class OSCBRIDGE_OT_demo_rig(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class OSCBRIDGE_OT_transport_reset(bpy.types.Operator):
+    bl_idname = "oscbridge.transport_reset"
+    bl_label = "Reset Transport"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        _reset_transport()
+        self.report({"INFO"}, "Transport reset")
+        return {"FINISHED"}
+
+
 class OSCBRIDGE_PT_live(bpy.types.Panel):
     bl_label = "Live Performance"
     bl_idname = "OSCBRIDGE_PT_live"
@@ -307,6 +365,7 @@ class OSCBRIDGE_PT_live(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(settings, "live_port", text="UDP")
         row.operator("oscbridge.live_toggle", text="Stop" if is_listening() else "Listen", icon="PAUSE" if is_listening() else "PLAY")
+        row.operator("oscbridge.transport_reset", text="", icon="FILE_REFRESH")
         layout.prop(settings, "live_auto_objects")
         layout.operator("oscbridge.build_performance_scene", icon="SCENE_DATA")
         layout.operator("oscbridge.bake_performance_scene", icon="ACTION")
@@ -315,6 +374,14 @@ class OSCBRIDGE_PT_live(bpy.types.Panel):
         layout.label(text=f"{status} · {_received} events", icon="RADIOBUT_ON" if is_listening() else "RADIOBUT_OFF")
         if _last_error:
             layout.label(text=_last_error[:80], icon="ERROR")
+        if _controls:
+            control_box = layout.box()
+            control_box.label(text="Controls", icon="EMPTY_SINGLE_ARROW")
+            for name, info in sorted(_controls.items()):
+                row = control_box.row(align=True)
+                row.label(text=f"{name}: {info['value']:.2f}")
+                op = row.operator("oscbridge.add_mapping", text="Map", icon="CON_FOLLOWPATH")
+                op.track_name = protocol.control_track(name)
         for track, state in sorted(_tracks.items()):
             box = layout.box()
             row = box.row()
@@ -337,4 +404,9 @@ class OSCBRIDGE_PT_live(bpy.types.Panel):
                 layout.label(text=event)
 
 
-classes = (OSCBRIDGE_OT_live_toggle, OSCBRIDGE_OT_demo_rig, OSCBRIDGE_PT_live)
+classes = (
+    OSCBRIDGE_OT_live_toggle,
+    OSCBRIDGE_OT_demo_rig,
+    OSCBRIDGE_OT_transport_reset,
+    OSCBRIDGE_PT_live,
+)

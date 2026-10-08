@@ -39,6 +39,7 @@ classes = (
     properties.OSCBridgeSettings,
     live.OSCBRIDGE_OT_live_toggle,
     live.OSCBRIDGE_OT_demo_rig,
+    live.OSCBRIDGE_OT_transport_reset,
     performance_scene.OSCBRIDGE_OT_build_performance_scene,
     performance_scene.OSCBRIDGE_OT_bake_performance_scene,
     operators.OSCBRIDGE_OT_load_file,

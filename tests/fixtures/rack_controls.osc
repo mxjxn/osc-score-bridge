@@ -1,0 +1,5 @@
+0.0 /rack/control filter -1
+0.5 /rack/control filter 1.8
+0.7 /rack/control filter inf
+0.8 /rack/control filter 0.5
+1.0 /rack/control  0.6
