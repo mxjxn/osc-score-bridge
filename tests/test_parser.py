@@ -24,6 +24,14 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(summary["max_val"], 4.0)
         self.assertEqual(summary["duration"], 1.5)
 
+    def test_parses_rack_controls_with_clamping(self):
+        fixture = ROOT / "tests" / "fixtures" / "rack_controls.osc"
+        tracks = PARSER.parse_osc_file(fixture)
+        self.assertEqual(
+            tracks["control.filter"],
+            [(0.0, 0.0), (0.5, 1.0), (0.8, 0.5)],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

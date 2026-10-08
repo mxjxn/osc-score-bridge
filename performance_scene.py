@@ -597,6 +597,27 @@ def update_live():
             modifier.strength += (_pad_target - modifier.strength) * min(1, delta * 2.5)
 
 
+def reset_live():
+    """Reset live envelopes and pooled objects to idle state."""
+    global _pad_target, _last_update
+    collection = _collection()
+    _active_rings.clear()
+    _floor_pulses.clear()
+    _pad_target = 0.0
+    _last_update = time.monotonic()
+    if collection is None:
+        return
+    for ring in (obj for obj in collection.objects if obj.get("osc_ring")):
+        ring.hide_viewport = True
+        ring.hide_render = True
+    for tile in (obj for obj in collection.objects if "osc_tile_row" in obj):
+        tile.location.z = float(tile.get("osc_base_z", -0.15))
+    for wall in (obj for obj in collection.objects if obj.get("osc_wall")):
+        modifier = wall.modifiers.get("Pad spread")
+        if modifier:
+            modifier.strength = 0.12
+
+
 class OSCBRIDGE_OT_build_performance_scene(bpy.types.Operator):
     bl_idname = "oscbridge.build_performance_scene"
     bl_label = "Build Portrait Tunnel"

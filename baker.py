@@ -159,6 +159,7 @@ def _bake_single(mapping, events, scene, fps, frame_start):
 
     data_path = mapping.target_data_path
     array_index = mapping.target_array_index
+    keyframe_index = _validate_target(obj, data_path, array_index)
 
     # Ensure animation data + action exist
     if obj.animation_data is None:
@@ -171,7 +172,7 @@ def _bake_single(mapping, events, scene, fps, frame_start):
     action = obj.animation_data.action
 
     # Remove existing keyframes on this data_path/index
-    _clear_fcurves_for(action, data_path, array_index)
+    _clear_fcurves_for(action, data_path, keyframe_index)
 
     easing = mapping.easing
     transition_frames = max(1, int(mapping.transition * fps))
@@ -187,22 +188,25 @@ def _bake_single(mapping, events, scene, fps, frame_start):
     if easing == "INSTANT" or ease_fn is None:
         # Simple step keyframes — one per event
         _insert_keyframe(scene, obj, data_path, array_index,
+                         keyframe_index,
                          frame_start + int(remapped[0][0] * fps),
                          remapped[0][1])
         for i in range(1, len(remapped)):
             time_sec, value = remapped[i]
             frame = frame_start + int(time_sec * fps)
             _insert_keyframe(scene, obj, data_path, array_index,
+                             keyframe_index,
                              frame, value)
 
         # Set to CONSTANT interpolation
-        _set_keyframe_interp(action, data_path, array_index, "CONSTANT")
+        _set_keyframe_interp(action, data_path, keyframe_index, "CONSTANT")
         return
 
     # For easing modes: generate intermediate keyframes between each pair
     # First event: just plant it
     first_frame = frame_start + int(remapped[0][0] * fps)
     _insert_keyframe(scene, obj, data_path, array_index,
+                     keyframe_index,
                      first_frame, remapped[0][1])
 
     for i in range(1, len(remapped)):
@@ -221,6 +225,7 @@ def _bake_single(mapping, events, scene, fps, frame_start):
         # (only if not the same frame as the previous keyframe)
         if trans_start_frame > prev_frame:
             _insert_keyframe(scene, obj, data_path, array_index,
+                             keyframe_index,
                              trans_start_frame, prev_val)
 
         # Generate intermediate keyframes tracing the easing curve.
@@ -234,52 +239,137 @@ def _bake_single(mapping, events, scene, fps, frame_start):
             frame = trans_start_frame + int(t * transition_frames)
             if frame < curr_frame:
                 _insert_keyframe(scene, obj, data_path, array_index,
+                                 keyframe_index,
                                  frame, val)
 
         # Final keyframe at the event time with the target value
         _insert_keyframe(scene, obj, data_path, array_index,
+                         keyframe_index,
                          curr_frame, curr_val)
 
     # Set bezier handles for smooth curves
-    _setup_bezier_handles(action, data_path, array_index)
+    _setup_bezier_handles(action, data_path, keyframe_index)
 
 
 # ──────────────────────────────────────────────
 # Keyframe Insertion Helpers
 # ──────────────────────────────────────────────
 
-def _insert_keyframe(scene, obj, data_path, array_index, frame, value):
+def _insert_keyframe(scene, obj, data_path, array_index, keyframe_index, frame, value):
     """
     Insert a single keyframe at a specific frame with a specific value.
     Sets frame first, then value, then inserts (order matters for depsgraph).
     """
     scene.frame_set(frame)
     _set_property_value(obj, data_path, array_index, value)
-    obj.keyframe_insert(data_path, index=array_index)
+    obj.keyframe_insert(data_path, index=keyframe_index)
 
 
 def _set_property_value(obj, data_path, array_index, value):
-    """Set a property value on an object, handling nested paths."""
-    if "." in data_path and not data_path.startswith("["):
-        parts = data_path.split(".")
-        current = obj
-        for part in parts[:-1]:
-            current = getattr(current, part, None)
-            if current is None:
-                raise ValueError(
-                    f"Cannot resolve path segment '{part}' in '{data_path}'"
-                )
-        prop = getattr(current, parts[-1])
+    """Set a property value on an object path."""
+    parent, accessor = _resolve_target_parent(obj, data_path)
+    prop = _read_target_value(parent, accessor, data_path)
+    if _is_indexable(prop):
         try:
             prop[array_index] = value
-        except TypeError:
-            setattr(current, parts[-1], value)
+        except Exception as exc:
+            raise ValueError(
+                f"Invalid array index {array_index} for '{data_path}'"
+            ) from exc
+        return
+    if array_index not in (0, -1):
+        raise ValueError(
+            f"'{data_path}' is scalar; use index 0"
+        )
+    _write_target_value(parent, accessor, value)
+
+
+def set_live_property_value(obj, data_path, array_index, value):
+    """Public setter reused by live control mappings."""
+    _validate_target(obj, data_path, array_index)
+    _set_property_value(obj, data_path, array_index, value)
+
+
+def _validate_target(obj, data_path, array_index):
+    """Validate target path and return keyframe index (-1 for scalar)."""
+    parent, accessor = _resolve_target_parent(obj, data_path)
+    prop = _read_target_value(parent, accessor, data_path)
+    if _is_indexable(prop):
+        try:
+            prop[array_index]
+        except Exception as exc:
+            raise ValueError(
+                f"Invalid array index {array_index} for '{data_path}'"
+            ) from exc
+        return array_index
+    if array_index not in (0, -1):
+        raise ValueError(f"'{data_path}' is scalar; use index 0")
+    return -1
+
+
+def _is_indexable(value):
+    return hasattr(value, "__getitem__") and hasattr(value, "__setitem__") and not isinstance(value, (str, bytes))
+
+
+def _read_target_value(parent, accessor, data_path):
+    kind, token = accessor
+    try:
+        if kind == "attr":
+            return getattr(parent, token)
+        return parent[token]
+    except Exception as exc:
+        raise ValueError(f"Invalid target path '{data_path}'") from exc
+
+
+def _write_target_value(parent, accessor, value):
+    kind, token = accessor
+    if kind == "attr":
+        setattr(parent, token, value)
     else:
-        prop = getattr(obj, data_path)
-        try:
-            prop[array_index] = value
-        except TypeError:
-            setattr(obj, data_path, value)
+        parent[token] = value
+
+
+def _resolve_target_parent(obj, data_path):
+    data_path = (data_path or "").strip()
+    if not data_path:
+        raise ValueError("No target data path specified")
+    parent_path, accessor = _split_data_path(data_path)
+    try:
+        parent = obj if not parent_path else obj.path_resolve(parent_path)
+    except Exception as exc:
+        raise ValueError(
+            f"Invalid target path '{data_path}' (cannot resolve '{parent_path or '<object>'}')"
+        ) from exc
+    return parent, accessor
+
+
+def _split_data_path(data_path):
+    if data_path.endswith("]"):
+        start = data_path.rfind("[")
+        if start < 0:
+            raise ValueError(f"Invalid target path '{data_path}'")
+        parent_path = data_path[:start]
+        if parent_path.endswith("."):
+            parent_path = parent_path[:-1]
+        key_expr = data_path[start + 1:-1].strip()
+        if key_expr.startswith(("'", '"')) and key_expr.endswith(("'", '"')) and len(key_expr) >= 2:
+            key = key_expr[1:-1]
+        else:
+            try:
+                key = int(key_expr)
+            except ValueError:
+                raise ValueError(f"Invalid target path '{data_path}'")
+        return parent_path, ("key", key)
+    depth = 0
+    for idx in range(len(data_path) - 1, -1, -1):
+        char = data_path[idx]
+        if char == "]":
+            depth += 1
+        elif char == "[":
+            depth -= 1
+        elif char == "." and depth == 0:
+            return data_path[:idx], ("attr", data_path[idx + 1:])
+    return "", ("attr", data_path)
 
 
 # ──────────────────────────────────────────────
@@ -378,10 +468,18 @@ def clear_baked(scene):
             continue
 
         action = anim_data.action
+        try:
+            keyframe_index = _validate_target(
+                obj,
+                mapping.target_data_path,
+                mapping.target_array_index,
+            )
+        except ValueError:
+            keyframe_index = mapping.target_array_index
         _clear_fcurves_for(
             action,
             mapping.target_data_path,
-            mapping.target_array_index,
+            keyframe_index,
         )
         removed += 1
         mapping.baked = False
