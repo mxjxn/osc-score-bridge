@@ -17,7 +17,7 @@ N-Panel location: View3D > Sidebar (N) > "OSC Bridge" tab
 bl_info = {
     "name": "OSC Score Bridge",
     "author": "Mx Jxn + Hermes",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar (N) > OSC Bridge",
     "description": "Monitor live musical OSC and map recorded scores to Blender animation",
@@ -29,6 +29,7 @@ import bpy
 from . import properties
 from . import operators
 from . import ui
+from . import cues
 from . import live
 from . import performance_scene
 
@@ -39,6 +40,7 @@ classes = (
     properties.OSCBridgeSettings,
     live.OSCBRIDGE_OT_live_toggle,
     live.OSCBRIDGE_OT_demo_rig,
+    live.OSCBRIDGE_OT_transport_reset,
     performance_scene.OSCBRIDGE_OT_build_performance_scene,
     performance_scene.OSCBRIDGE_OT_bake_performance_scene,
     operators.OSCBRIDGE_OT_load_file,
@@ -56,6 +58,7 @@ classes = (
 
 
 def register():
+    cues.register()
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.osc_bridge_settings = bpy.props.PointerProperty(
@@ -64,6 +67,7 @@ def register():
 
 
 def unregister():
+    cues.unregister()
     live.stop()
     performance_scene.remove_frame_handler()
     del bpy.types.Scene.osc_bridge_settings

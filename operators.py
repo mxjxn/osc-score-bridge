@@ -27,6 +27,9 @@ class OSCBRIDGE_OT_load_file(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         settings = context.scene.osc_bridge_settings
+        if not self.track_name:
+            self.report({"ERROR"}, "No track/control selected")
+            return {"CANCELLED"}
 
         # Parse the file
         try:
@@ -98,8 +101,7 @@ class OSCBRIDGE_OT_add_mapping(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        settings = context.scene.osc_bridge_settings
-        return len(settings.tracks) > 0
+        return True
 
 
 class OSCBRIDGE_OT_remove_mapping(bpy.types.Operator):

@@ -248,6 +248,9 @@ class OSCBRIDGE_PT_docs(bpy.types.Panel):
             ("/c_set", "Set control bus: bus value"),
             ("", "  Example: 0.0 /c_set 0 0.5"),
             ("", ""),
+            ("/rack/control", "Named control: name value (finite, clamped 0..1)"),
+            ("", "  Example: 0.0 /rack/control bloom 0.7"),
+            ("", ""),
             ("Timestamps", "Seconds (float). Frame = time × FPS + start_frame"),
             ("Comments", "Lines starting with # are ignored"),
         ]
