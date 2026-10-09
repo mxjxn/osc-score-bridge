@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Page not found / OSC Score Bridge</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="reference article">
+    <p class="eyebrow">404 / NOT FOUND</p>
+    <h1>That page<br><em>moved.</em></h1>
+    <p class="intro">The documentation source files are no longer published as raw Markdown. Taking you to the rendered reference instead.</p>
+    <p><a class="next-link" href="reference/index.html">Open the reference →</a></p>
+  </main>
+  <script>
+    const legacyPages = {
+      '/protocol.md': 'reference/protocol.html',
+      '/blender-workflow.md': 'reference/baking.html',
+      '/development.md': 'reference/development.html'
+    };
+    const match = window.location.pathname.match(/^(.*\/osc-score-bridge)(\/.*)$/);
+    const legacyPage = match && legacyPages[match[2]];
+    if (legacyPage) {
+      window.location.replace(`${match[1]}/${legacyPage}`);
+    }
+  </script>
+</body>
+</html>

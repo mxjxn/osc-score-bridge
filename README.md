@@ -37,9 +37,9 @@ The add-on can also create a generic visual rig for incoming tracks and build th
 
 ## Documentation
 
-- [OSC protocol and addresses](docs/protocol.md)
-- [Blender workflow and baking](docs/blender-workflow.md)
-- [Development and packaging](docs/development.md)
+- [OSC protocol and addresses](https://mxjxn.github.io/osc-score-bridge/reference/protocol.html)
+- [Blender workflow and baking](https://mxjxn.github.io/osc-score-bridge/reference/baking.html)
+- [Development and packaging](https://mxjxn.github.io/osc-score-bridge/reference/development.html)
 - [Generant workstation](https://mxjxn.github.io/Generant/)
 
 ## Tests
