@@ -3,9 +3,10 @@ OSC Score Bridge — Parser
 Parses SuperCollider NRT OSC score files into parameter tracks.
 
 Each track is named "synthname.paramname" and contains (time, value) tuples.
-Also tracks "control_N" for /c_set messages.
+Also tracks "control_N" for /c_set and "control.name" for /rack/control.
 """
 
+import math
 import re
 from collections import defaultdict
 
@@ -49,6 +50,8 @@ def parse_osc_file(filepath):
             _parse_n_set(timestamp, args, tracks, node_to_synth)
         elif address == "/c_set":
             _parse_c_set(timestamp, args, tracks)
+        elif address == "/rack/control":
+            _parse_rack_control(timestamp, args, tracks)
         # /g_new, /n_free, /d_recv etc. are structural — no param data
 
     # Sort each track by time
@@ -105,6 +108,27 @@ def _parse_c_set(timestamp, args, tracks):
 
     track_name = f"control_{bus}"
     tracks[track_name].append((timestamp, value))
+
+
+def _parse_rack_control(timestamp, args, tracks):
+    """Parse /rack/control name value."""
+    if len(args) < 2:
+        return
+
+    name = str(args[0]).strip()
+    if not name:
+        return
+
+    try:
+        value = float(args[1])
+    except ValueError:
+        return
+    if not math.isfinite(value):
+        return
+
+    tracks[f"control.{name}"].append(
+        (timestamp, min(1.0, max(0.0, value)))
+    )
 
 
 def _extract_params(timestamp, synthname, param_pairs, tracks):
