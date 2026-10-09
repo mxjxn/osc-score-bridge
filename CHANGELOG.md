@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — 2026-10-09
+
+- Add synth-independent score cues, state changes, arbitrary markers, and camera routes.
+- Add normalized /rack/control mappings and transport reset messages.
+- Share protocol helpers between live performance and baked score paths.
+- Update packaging, documentation, and the companion Generant workflow.
+
 ## 1.1.0 — 2026-09-07
 
 - Receive timestamped live OSC note, parameter, free, and choke events over UDP.

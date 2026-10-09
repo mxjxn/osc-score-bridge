@@ -1,129 +1,54 @@
 # OSC Score Bridge
 
-A Blender add-on that receives live musical events over OSC and maps recorded **SuperCollider** score data to **Blender animations**.
+OSC Score Bridge is a Blender add-on for receiving event data over OSC and applying it to Blender properties, objects, cameras, and animation timelines.
 
-## Live performance quick start
-
-1. Install and enable the add-on, then open **View3D → Sidebar (`N`) → OSC Bridge**.
-2. Expand **Live Performance** and click **Listen**. The default UDP port is `57141`.
-3. Start an OSC sender. The Ambient Companion server reports `Blender OSC mirror 127.0.0.1:57141` when its mirror is active.
-4. Enable browser audio and connect `sclang`, then play the sequencer or evaluate `~wcNote.(\bass, 48, 1)`.
-5. The dashboard shows the track, SynthDef, note and active voice count. With **Create visuals for new tracks** enabled, one reactive object is created per musical track.
-
-Click **Build Portrait Tunnel** for the first designed performance scene. It creates:
-
-- a 1080 × 1920 Eevee composition at 30 FPS;
-- an 800-frame, 12-bar timeline at 108 BPM;
-- 44 rows of bass-reactive floor tiles with an exact 33-row seamless wrap;
-- two transparent, pad-reactive displaced glass walls;
-- a pool of 36 psychedelic segmented drum rings in six patterns;
-- portrait camera movement and a glow compositor.
-
-The loop is rendered on frames 1–800. Frame 801 is the duplicate loop state and should not be included in the video.
-
-Load a recorded text `.osc` take in the main file control and click **Bake Score to Tunnel** to create deterministic timeline animation. Live OSC is not used during the final render. The baker converts bass notes to tile impulses, pad voice activity to wall displacement, and a restrained subset of drum hits to pooled ring flythroughs.
-
-OSC bundles retain their timestamps, so the add-on queues events until their intended audio time. Use **Create / Refresh Visual Rig** to arrange the known track objects in one collection.
-
-### Live OSC protocol
-
-Send messages to UDP port `57141` (configurable in the panel). Plain OSC messages and timestamped OSC bundles are accepted.
-
-| Address | Arguments | Purpose |
-|---|---|---|
-| `/companion/note` | `track, nodeID, synth, parameter, value...` | Start a voice |
-| `/companion/set` | `track, nodeID, parameter, value...` | Change or gate a voice |
-| `/companion/free` | `track, nodeID` | End a voice |
-| `/companion/choke` | `track` | Choke open/closed drum voices |
-
-Recognized performance tracks are `bass`, `drums`, and `pad`. The dashboard still displays other track names, and the generic visual rig can create an object for each one. Parameters such as `freq`, `amp`, `decay`, `type`, and `spread` drive the supplied scene.
-
-Generate an OSC score file in SuperCollider, load it in Blender, map any parameter (frequency, amplitude, etc.) to any animatable property, and bake it to F-Curves. No audio hardware required.
+It is the Blender-side companion to [Generant](https://github.com/mxjxn/Generant), a desktop workstation that sequences notes, controls, curves, and arbitrary markers. Generant produces the events; this add-on previews them live or bakes them into deterministic Blender data.
 
 ## Install
 
-1. Download or clone this repo
-2. In Blender: **Edit → Preferences → Add-ons → Install from Disk**
-3. Select the folder (or zip it first)
-4. Enable "OSC Score Bridge"
+1. Download or clone this repository.
+2. In Blender, open Edit → Preferences → Add-ons → Install from Disk.
+3. Select a packaged zip or the add-on directory.
+4. Enable OSC Score Bridge.
+5. Open the OSC Bridge tab in the 3D View sidebar.
 
-Look for the **OSC Bridge** tab in the N-sidebar (`N` key in the 3D viewport).
+The default UDP port is 57141.
 
-## How It Works
+## Basic workflow
 
-```
-SuperCollider NRT          Blender
-┌─────────────┐          ┌─────────────────┐
-│  score.scd  │  .osc    │  OSC Bridge     │
-│  sclang     ├─────────►│  Parse → Map    │
-│             │  file    │  Bake → F-Curve │
-└─────────────┘          └─────────────────┘
-```
+1. Start Generant or another OSC sender.
+2. Use Live Performance → Listen for live preview.
+3. Map incoming controls to Blender properties, or configure score cues.
+4. For a final render, import an OSC score and bake it to F-Curves, custom properties, and timeline markers.
+5. Render with the receiver stopped; the baked scene contains the animation data.
 
-### Recorded score workflow
+Live preview is useful for performance and setup. Baking is the deterministic path for rendering.
 
-1. **Load** a `.osc` file — tracks are auto-detected (`sine.freq`, `saw.amp`, `control_0`, etc.)
-2. **Map** a track to a Blender property with custom input/output ranges
-3. **Bake** — generates F-Curve keyframes on the timeline
+## Supported data
 
-### Example Mapping
+- timestamped note-on, note-off, set, free, and choke messages;
+- normalized control values;
+- numeric and string state changes;
+- sampled curves and easing;
+- arbitrary markers such as /song/part1;
+- camera routes and custom cue properties.
 
-| OSC Track | Target | Input Range | Output Range | Result |
-|---|---|---|---|---|
-| `sine.freq` | `rotation_euler[2]` | 440–660 Hz | 0.0–6.283 rad | Each note spins the object |
-| `saw.amp` | `location[1]` | 0.0–0.2 | -2.0–2.0 m | Bass moves object vertically |
-| `noise.amp` | `scale[0]` | 0.0–0.15 | 0.5–1.5 | Noise bursts scale the object |
+The add-on can also create a generic visual rig for incoming tracks and build the included portrait tunnel demo scene.
 
-## Generating OSC Files
+## Documentation
 
-SuperCollider 3.13 doesn't have a built-in OSC score export. Here's a minimal working example:
+- [OSC protocol and addresses](docs/protocol.md)
+- [Blender workflow and baking](docs/blender-workflow.md)
+- [Development and packaging](docs/development.md)
+- [Generant workstation](https://mxjxn.github.io/Generant/)
 
-```supercollider
-SynthDef(\sine, { |out = 0, freq = 440, amp = 0.3, sustain = 1|
-    var env = EnvGen.kr(Env.linen(0.01, sustain, 0.1), doneAction: 2);
-    var sig = SinOsc.ar(freq) * amp * env;
-    Out.ar(out, sig ! 2);
-}).add;
+## Tests
 
-{
-    var score = Score([
-        [0.0, [\s_new, \sine, 1000, 0, 0, \freq, 440, \amp, 0.3, \sustain, 1]],
-        [1.0, [\s_new, \sine, 1001, 0, 0, \freq, 880, \amp, 0.2, \sustain, 0.5]],
-    ]);
+    python3 -m unittest discover -s tests -v
+    python3 -m py_compile *.py
 
-    // Custom writer — saves timestamp + OSC address per line
-    ~writeOSCFile.value(score, "myscore.osc");
-}.value;
-```
-
-The bridge reads a text score: one timestamped OSC message per line. The output file looks like:
-
-```
-0.0 /s_new sine 1000 0 0 freq 440 amp 0.3 sustain 1
-1.0 /s_new sine 1001 0 0 freq 880 amp 0.2 sustain 0.5
-```
-
-Patterns work too — `Pbind` → `asScore()` → same writer.
-
-## Features
-
-- **Live dashboard** — inspect incoming notes and active voices by track and SynthDef
-- **Automatic visual rig** — create independent bass, drum and pad objects without manual paths
-- **Timestamp-aware OSC** — follow scheduled SuperCollider events in sync with browser audio
-- **Auto-detect** tracks from `/s_new`, `/n_set`, and `/c_set` messages
-- **Range mapping** — remap any input range to any output range per mapping
-- **Interpolation** — Step (percussive), Linear (smooth), or Bezier
-- **Multi-target** — map one track to multiple objects
-- **Re-bakeable** — overwrites cleanly, no manual cleanup needed
-- **Blender 5.x** slotted actions fully supported
-- **In-panel docs** — Guide, Format reference, and Tips tabs right in the UI
-
-## Requirements
-
-- Blender 4.2+ (tested on 5.2)
-- SuperCollider 3.13+ (for generating `.osc` files)
-- No audio hardware needed
+The Blender smoke test requires Blender. Parser and protocol tests run without Blender.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
