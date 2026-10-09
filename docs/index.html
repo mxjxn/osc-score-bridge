@@ -2,6 +2,17 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Documentation for OSC Score Bridge, a Blender add-on for receiving and baking OSC data."><title>OSC Score Bridge</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="reference/reference.css"></head>
 <body><header class="nav"><a class="brand" href="#top"><span class="brand-mark">O</span> OSC SCORE BRIDGE</a><nav><a href="#install">Install</a><a href="reference/index.html">Reference</a><a href="https://github.com/mxjxn/osc-score-bridge">Source ↗</a></nav><a class="nav-cta" href="https://mxjxn.github.io/Generant/">Generant ↗</a></header>
 <main id="top" class="reference article"><p class="eyebrow">BLENDER ADD-ON</p><h1>OSC Score Bridge</h1><p class="intro">The add-on receives OSC while Blender is running and imports OSC score data as F-Curves, custom properties, and timeline markers. Generant can export the JSON score format used by the cue importer.</p>
+<section class="front-example">
+  <h2>Example: drive a Blender light from a kick cue</h2>
+  <div class="example-flow">
+    <div><span>1 · SCORE EVENT</span><pre>/visual/kick 1</pre><p>Send <code>1</code> on the kick and <code>0</code> shortly afterward.</p></div>
+    <div><span>2 · IMPORTED PROPERTY</span><pre>Rack OSC Score
+["osc:/visual/kick"]</pre><p>The score importer creates and keyframes this custom property.</p></div>
+    <div><span>3 · BLENDER DRIVER</span><pre>kick * 1500</pre><p>A driver on the light's Power reads the property. The cue produces 1500 W; the release returns it to 0 W.</p></div>
+  </div>
+  <ol><li>Import the Generant OSC score in the <strong>Generant Cues</strong> panel.</li><li>Right-click the light's <strong>Power</strong> property and choose <strong>Add Driver</strong>.</li><li>Add a <strong>Single Property</strong> variable named <code>kick</code>. Set its object to <strong>Rack OSC Score</strong> and its path to <code>["osc:/visual/kick"]</code>.</li><li>Set the driver expression to <code>kick * 1500</code>.</li></ol>
+  <p><a href="reference/baking.html">Full instructions for objects, materials, Geometry Nodes, modifiers, and cameras →</a></p>
+</section>
 <h2 id="install">Install</h2><ol><li>Download an add-on zip from the repository releases, or clone the repository and run <code>./scripts/package.sh</code>.</li><li>In Blender, open Preferences → Add-ons → Install from Disk.</li><li>Select the zip and enable <strong>OSC Score Bridge</strong>.</li><li>Open a 3D View, press <code>N</code>, and select the <strong>OSC Bridge</strong> tab.</li></ol>
 <h2>Choose a workflow</h2>
 <table><thead><tr><th>Task</th><th>Instructions</th></tr></thead><tbody>
