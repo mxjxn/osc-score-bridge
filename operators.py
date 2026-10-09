@@ -27,6 +27,9 @@ class OSCBRIDGE_OT_load_file(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         settings = context.scene.osc_bridge_settings
+        if not self.track_name:
+            self.report({"ERROR"}, "No track/control selected")
+            return {"CANCELLED"}
 
         # Parse the file
         try:

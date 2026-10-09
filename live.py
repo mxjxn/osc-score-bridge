@@ -160,25 +160,15 @@ def _apply_control_mappings(control_name, raw_value):
         obj = bpy.data.objects.get(obj_name)
         if obj is None:
             raise ValueError(f"Object '{obj_name}' not found for '{track_name}'")
-        mapped = baker.remap(
-            raw_value,
-            mapping.in_min,
-            mapping.in_max,
-            mapping.out_min,
-            mapping.out_max,
-        )
-        baker.set_live_property_value(
-            obj,
-            mapping.target_data_path,
-            mapping.target_array_index,
-            mapped,
-        )
+        mapped = baker.remap(raw_value, mapping.in_min, mapping.in_max, mapping.out_min, mapping.out_max)
+        baker.set_live_property_value(obj, mapping.target_data_path, mapping.target_array_index, mapped)
 
 
 def _reset_transport():
+    from . import cues, performance_scene
+    cues.reset_live()
     protocol.reset_transport_state(_scheduled, _voices, _tracks)
     _controls.clear()
-    from . import performance_scene
     performance_scene.reset_live()
     _events.appendleft("RESET transport")
 
@@ -250,6 +240,10 @@ def _handle(address, args):
         _apply_control_mappings(name, value)
     elif address in {"/rack/reset", "/companion/reset", "/transport/reset"}:
         _reset_transport()
+    else:
+        from . import cues
+        cues.apply_live(address, args)
+        _events.appendleft(f"CUE {address} {args}")
 
 
 def _poll():
@@ -263,11 +257,15 @@ def _poll():
                 data, _sender = _socket.recvfrom(65535)
             except BlockingIOError:
                 break
-            _scheduled.extend(decode_packet(data))
+            for event in decode_packet(data):
+                if event[1] in {"/rack/reset", "/companion/reset", "/transport/reset"}:
+                    _reset_transport()
+                else:
+                    _scheduled.append(event)
         now = time.time()
         due, future = protocol.split_due_events(_scheduled, now)
         _scheduled[:] = future
-        for _at, address, args in due:
+        for _at, address, args in sorted(due, key=lambda e: e[0] or 0):
             _handle(address, args)
         for track in protocol.expire_voices(_voices, _tracks, now):
             _events.appendleft(f"OFF {track:<8} auto")
@@ -404,9 +402,4 @@ class OSCBRIDGE_PT_live(bpy.types.Panel):
                 layout.label(text=event)
 
 
-classes = (
-    OSCBRIDGE_OT_live_toggle,
-    OSCBRIDGE_OT_demo_rig,
-    OSCBRIDGE_OT_transport_reset,
-    OSCBRIDGE_PT_live,
-)
+classes = (OSCBRIDGE_OT_live_toggle, OSCBRIDGE_OT_demo_rig, OSCBRIDGE_OT_transport_reset, OSCBRIDGE_PT_live)
