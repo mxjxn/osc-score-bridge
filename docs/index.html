@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Documentation for OSC Score Bridge, a Blender add-on for receiving and baking OSC data."><title>OSC Score Bridge</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="reference/reference.css"></head>
-<body><header class="nav"><a class="brand" href="#top"><span class="brand-mark">O</span> OSC SCORE BRIDGE</a><nav><a href="#install">Install</a><a href="reference/index.html">Reference</a><a href="https://mxjxn.github.io/generant-renoise/">Renoise</a><a href="https://github.com/mxjxn/osc-score-bridge">Source ↗</a></nav><a class="nav-cta" href="https://mxjxn.github.io/Generant/">Generant ↗</a></header>
-<main id="top" class="reference article"><p class="eyebrow">BLENDER ADD-ON</p><h1>OSC Score Bridge</h1><p class="intro">The add-on receives OSC while Blender is running and imports OSC score data as F-Curves, custom properties, and timeline markers. Generant can export the JSON score format used by the cue importer.</p>
+<body><header class="nav"><a class="brand" href="#top"><span class="brand-mark">O</span> OSC SCORE BRIDGE</a><nav><a href="#install">Install</a><a href="reference/index.html">Reference</a><a href="https://mxjxn.github.io/renoise-osc-sequencer/">Renoise OSC Sequencer</a><a href="https://github.com/mxjxn/osc-score-bridge">Source ↗</a></nav><a class="nav-cta" href="https://mxjxn.github.io/Generant/">Generant ↗</a></header>
+<main id="top" class="reference article"><p class="eyebrow">BLENDER ADD-ON</p><h1>OSC Score Bridge</h1><p class="intro">The add-on receives OSC while Blender is running and imports OSC score data as F-Curves, custom properties, and timeline markers. Generant and Renoise OSC Sequencer export the JSON score format used by the cue importer.</p>
 <section class="front-example">
   <h2>Example: drive a Blender light from a kick cue</h2>
   <div class="example-flow">
@@ -10,7 +10,7 @@
 ["osc:/visual/kick"]</pre><p>The score importer creates and keyframes this custom property.</p></div>
     <div><span>3 · BLENDER DRIVER</span><pre>kick * 1500</pre><p>A driver on the light's Power reads the property. The cue produces 1500 W; the release returns it to 0 W.</p></div>
   </div>
-  <ol><li>Import the Generant OSC score in the <strong>Generant Cues</strong> panel.</li><li>Right-click the light's <strong>Power</strong> property and choose <strong>Add Driver</strong>.</li><li>Add a <strong>Single Property</strong> variable named <code>kick</code>. Set its object to <strong>Rack OSC Score</strong> and its path to <code>["osc:/visual/kick"]</code>.</li><li>Set the driver expression to <code>kick * 1500</code>.</li></ol>
+  <ol><li>Import the OSC score in the <strong>OSC Score Cues</strong> panel.</li><li>Right-click the light's <strong>Power</strong> property and choose <strong>Add Driver</strong>.</li><li>Add a <strong>Single Property</strong> variable named <code>kick</code>. Set its object to <strong>Rack OSC Score</strong> and its path to <code>["osc:/visual/kick"]</code>.</li><li>Set the driver expression to <code>kick * 1500</code>.</li></ol>
   <p><a href="reference/baking.html">Full instructions for objects, materials, Geometry Nodes, modifiers, and cameras →</a></p>
 </section>
 <h2 id="install">Install</h2><ol><li>Download an add-on zip from the repository releases, or clone the repository and run <code>./scripts/package.sh</code>.</li><li>In Blender, open Preferences → Add-ons → Install from Disk.</li><li>Select the zip and enable <strong>OSC Score Bridge</strong>.</li><li>Open a 3D View, press <code>N</code>, and select the <strong>OSC Bridge</strong> tab.</li></ol>
@@ -18,9 +18,9 @@
 <table><thead><tr><th>Task</th><th>Instructions</th></tr></thead><tbody>
 <tr><td>Check OSC while Generant is playing</td><td><a href="reference/live.html">Receive live OSC</a></td></tr>
 <tr><td>See supported addresses and arguments</td><td><a href="reference/protocol.html">Message reference</a></td></tr>
-<tr><td>Import a Generant score and connect it to Blender properties</td><td><a href="reference/baking.html">Import and bake</a></td></tr>
+<tr><td>Import an OSC score and connect it to Blender properties</td><td><a href="reference/baking.html">Import and bake</a></td></tr>
 <tr><td>Find the module responsible for a behavior</td><td><a href="reference/architecture.html">Code path</a></td></tr>
 <tr><td>Run tests or build the add-on zip</td><td><a href="reference/development.html">Development</a></td></tr>
 </tbody></table>
-<h2>Sequencers and the bridge</h2><p><a href="https://mxjxn.github.io/Generant/">Generant</a> sequences music and arbitrary OSC events. The <a href="https://mxjxn.github.io/generant-renoise/">Generant OSC Renoise tool</a> sends and exports the same score format from Renoise effect columns and automation. OSC Score Bridge receives either source live or imports its exported score into Blender. The imported data can drive lights, transforms, shaders, Geometry Nodes, modifiers, cameras, or custom scripts.</p>
-</main><footer><a href="https://github.com/mxjxn/osc-score-bridge">Source</a><a href="reference/index.html">Reference</a><a href="https://mxjxn.github.io/Generant/">Generant</a><a href="https://mxjxn.github.io/generant-renoise/">Renoise</a></footer></body></html>
+<h2>Sequencers and the bridge</h2><p><a href="https://mxjxn.github.io/Generant/">Generant</a> sequences music and arbitrary OSC events. <a href="https://mxjxn.github.io/renoise-osc-sequencer/">Renoise OSC Sequencer</a> sends and exports the same score format from Renoise effect columns and automation. OSC Score Bridge receives either source live or imports its exported score into Blender. The imported data can drive lights, transforms, shaders, Geometry Nodes, modifiers, cameras, or custom scripts.</p>
+</main><footer><a href="https://github.com/mxjxn/osc-score-bridge">Source</a><a href="reference/index.html">Reference</a><a href="https://mxjxn.github.io/Generant/">Generant</a><a href="https://mxjxn.github.io/renoise-osc-sequencer/">Renoise OSC Sequencer</a></footer></body></html>

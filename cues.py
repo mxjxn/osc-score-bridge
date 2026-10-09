@@ -1,4 +1,4 @@
-"""Generant score cues: synth-independent OSC and deterministic Blender baking."""
+"""OSC score cues: synth-independent OSC and deterministic Blender baking."""
 import hashlib
 import json
 import math
@@ -10,7 +10,7 @@ from bpy.props import CollectionProperty, IntProperty, PointerProperty, StringPr
 
 def validate_score(score):
     if score.get('format') != 'rack-osc-score' or score.get('version') != 1:
-        raise ValueError('Choose a Generant OSC score JSON file')
+        raise ValueError('Choose an OSC score JSON file')
     duration = score.get('durationSeconds')
     events = score.get('events')
     if not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
@@ -112,7 +112,7 @@ def bake_score(scene, score, start=1):
     for key in list(obj.keys()):
         if key.startswith('osc:'): del obj[key]
     for marker in list(scene.timeline_markers):
-        if marker.name.startswith('[Generant OSC] '): scene.timeline_markers.remove(marker)
+        if marker.name.startswith(('[OSC Score] ', '[Generant OSC] ')): scene.timeline_markers.remove(marker)
     counts = {}
     for event in score['events']:
         key = property_key(event['address']); frame = start + event['seconds'] * fps
@@ -123,9 +123,9 @@ def bake_score(scene, score, start=1):
         else:
             value = None
         if value is not None:
-            obj[key] = float(value); obj.keyframe_insert(data_path='["'+key+'"]', frame=frame, group='Generant OSC')
+            obj[key] = float(value); obj.keyframe_insert(data_path='["'+key+'"]', frame=frame, group='OSC Score')
         if event['kind'] != 'curve':
-            marker = scene.timeline_markers.new('[Generant OSC] ' + event['address'], frame=round(frame))
+            marker = scene.timeline_markers.new('[OSC Score] ' + event['address'], frame=round(frame))
             for route in scene.rack_osc_cameras:
                 if route.address == event['address'] and route.camera and route.camera.type == 'CAMERA': marker.camera = route.camera
     action = obj.animation_data.action if obj.animation_data else None
@@ -133,7 +133,7 @@ def bake_score(scene, score, start=1):
         curves = list(action.fcurves) if hasattr(action, 'fcurves') else [curve for layer in action.layers for strip in layer.strips for bag in strip.channelbags for curve in bag.fcurves]
         for curve in curves:
             for point in curve.keyframe_points: point.interpolation = 'CONSTANT'
-    text = bpy.data.texts.get(scene.get('rack_osc_score_text', '')) or bpy.data.texts.new('Generant OSC Score.json')
+    text = bpy.data.texts.get(scene.get('rack_osc_score_text', '')) or bpy.data.texts.new('OSC Score.json')
     text.clear(); text.write(json.dumps(score)); scene['rack_osc_score_text'] = text.name; scene['rack_osc_start'] = start
     scene.frame_set(scene.frame_current); return obj
 
@@ -155,7 +155,7 @@ class RACKOSC_OT_remove_camera(bpy.types.Operator):
 
 
 class RACKOSC_OT_import_score(bpy.types.Operator):
-    bl_idname = 'rackosc.import_score'; bl_label = 'Import / bake Generant OSC score'; bl_options = {'REGISTER', 'UNDO'}
+    bl_idname = 'rackosc.import_score'; bl_label = 'Import / bake OSC score'; bl_options = {'REGISTER', 'UNDO'}
     filepath: StringProperty(subtype='FILE_PATH'); filter_glob: StringProperty(default='*.json', options={'HIDDEN'})
     def invoke(self, context, event): context.window_manager.fileselect_add(self); return {'RUNNING_MODAL'}
     def execute(self, context):
@@ -168,12 +168,12 @@ class RACKOSC_OT_import_score(bpy.types.Operator):
 
 
 class RACKOSC_PT_cues(bpy.types.Panel):
-    bl_label = 'Generant Cues'; bl_idname = 'RACKOSC_PT_cues'; bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'; bl_category = 'OSC Bridge'
+    bl_label = 'OSC Score Cues'; bl_idname = 'RACKOSC_PT_cues'; bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'; bl_category = 'OSC Bridge'
     def draw(self, context):
         layout = self.layout; layout.operator('rackosc.import_score'); layout.operator('rackosc.add_camera')
         for i, route in enumerate(context.scene.rack_osc_cameras):
             row = layout.row(align=True); row.prop(route, 'address', text=''); row.prop(route, 'camera', text=''); row.operator('rackosc.remove_camera', text='', icon='X').index = i
-        layout.label(text='Values: Generant OSC → custom properties osc:/address')
+        layout.label(text='Values: OSC score → custom properties osc:/address')
         layout.label(text='Empty messages increment a trigger counter.'); layout.label(text=str(context.scene.get('osc:last_address', 'No cue received')))
 
 

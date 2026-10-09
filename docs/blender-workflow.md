@@ -12,7 +12,7 @@ Mappings connect a track or control to a Blender object and data path. Input and
 
 ## Baking
 
-1. Export an OSC score from Generant or create a text score.
+1. Export an OSC score from Generant or Renoise OSC Sequencer, or create a text score.
 2. Load the score in the OSC Bridge panel.
 3. Configure mappings and camera routes.
 4. Click Import / Bake.

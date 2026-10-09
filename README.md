@@ -1,6 +1,6 @@
 # OSC Score Bridge
 
-OSC Score Bridge is a Blender add-on for receiving event data over OSC and applying it to Blender properties, objects, cameras, and animation timelines. It tightly pairs with [Generant](https://mxjxn.github.io/Generant).
+OSC Score Bridge is a Blender add-on for receiving event data over OSC and applying it to Blender properties, objects, cameras, and animation timelines. It accepts scores from [Generant](https://mxjxn.github.io/Generant/) and [Renoise OSC Sequencer](https://mxjxn.github.io/renoise-osc-sequencer/).
 
 It is the Blender-side companion to [Generant](https://github.com/mxjxn/Generant), a desktop workstation that sequences notes, controls, curves, and arbitrary markers. Generant produces the events; this add-on previews them live or bakes them into deterministic Blender data.
 
